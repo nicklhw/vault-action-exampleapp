@@ -18,5 +18,8 @@ jobs:
           role: demo-app-a-role
           secrets: |
             secret/data/demo_app_a app_secret
+      - name: Echo Secrets
+        run: |
+          echo 'app_secret="${{ env.APP_SECRET }}"'
       - name: Build Docker Image
         run: docker build . --file Dockerfile --build-arg app_secret="${{ env.APP_SECRET }}" -t vault-action-exampleapp
