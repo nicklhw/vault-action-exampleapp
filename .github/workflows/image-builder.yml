@@ -1,9 +1,17 @@
 name: ImageBuilder
 # Run this workflow every time a new commit pushed to your repository
-on: push
+on: 
+  push:
+    branches:
+      - main
+
 jobs:
-  build:
+  deploy-to-dev:
+    name: "Deploy to dev"
     runs-on: self-hosted
+    environment: dev
+    env:
+      ENVIRONMENT: dev
     permissions:
       contents: read
       id-token: write
@@ -15,8 +23,56 @@ jobs:
           method: jwt
           url: http://127.0.0.1:8200
           tlsSkipVerify: true
-          role: demo-app-a-role
+          role: ${{ github.event.repository.name }}_${{ env.ENVIRONMENT }}
           secrets: |
-            secret/data/demo_app_a app_secret
+            secret/data/${{ github.event.repository.name }}/${{ env.ENVIRONMENT }} app_secret
+      - name: Build Docker Image
+        run: docker build . --file Dockerfile --build-arg app_secret="${{ env.APP_SECRET }}" -t vault-action-exampleapp
+      
+  deploy-to-test:
+    name: "Deploy to test"
+    runs-on: self-hosted
+    environment: test
+    needs: deploy-to-dev
+    env:
+      ENVIRONMENT: test
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v3
+      - name: Import Secrets
+        uses: hashicorp/vault-action@v2.4.0
+        with:
+          method: jwt
+          url: http://127.0.0.1:8200
+          tlsSkipVerify: true
+          role: ${{ github.event.repository.name }}_${{ env.ENVIRONMENT }}
+          secrets: |
+            secret/data/${{ github.event.repository.name }}/${{ env.ENVIRONMENT }} app_secret
+      - name: Build Docker Image
+        run: docker build . --file Dockerfile --build-arg app_secret="${{ env.APP_SECRET }}" -t vault-action-exampleapp
+        
+  deploy-to-prod:
+    name: "Deploy to prod"
+    runs-on: self-hosted
+    environment: prod
+    needs: deploy-to-test
+    env:
+      ENVIRONMENT: prod
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v3
+      - name: Import Secrets
+        uses: hashicorp/vault-action@v2.4.0
+        with:
+          method: jwt
+          url: http://127.0.0.1:8200
+          tlsSkipVerify: true
+          role: ${{ github.event.repository.name }}_${{ env.ENVIRONMENT }}
+          secrets: |
+            secret/data/${{ github.event.repository.name }}/${{ env.ENVIRONMENT }} app_secret
       - name: Build Docker Image
         run: docker build . --file Dockerfile --build-arg app_secret="${{ env.APP_SECRET }}" -t vault-action-exampleapp
